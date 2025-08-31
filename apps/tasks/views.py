@@ -16,7 +16,7 @@ from .serializers import (TaskSerializer, TaskCreateSerializer, TaskCommentSeria
                          TaskUserLogSerializer, TaskUserLogCreateSerializer, TaskUserLogAttachmentSerializer)
 
 class TaskListCreateView(generics.ListCreateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_serializer_class(self):
@@ -31,10 +31,18 @@ class TaskListCreateView(generics.ListCreateAPIView):
         project_id = self.request.query_params.get('project')
         assignee_id = self.request.query_params.get('assignee')
         
-        # 用户可以看到自己创建的、被分配的、或项目相关的任务
-        queryset = Task.objects.filter(
-            Q(creator=user) | Q(assignee=user) | Q(project__members=user)
-        ).distinct()
+        # 基础查询条件
+        if user.is_authenticated:
+            # 已登录用户可以看到：自己创建的、被分配的、项目相关的、或公开的任务
+            queryset = Task.objects.filter(
+                Q(creator=user) | 
+                Q(assignee=user) | 
+                Q(project__members=user) | 
+                Q(is_public=True)
+            ).distinct()
+        else:
+            # 未登录用户只能看到公开任务
+            queryset = Task.objects.filter(is_public=True)
         
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -48,6 +56,13 @@ class TaskListCreateView(generics.ListCreateAPIView):
         return queryset.order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
+        # 创建任务需要登录
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': '需要登录才能创建任务'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
         # 使用CreateSerializer验证和创建
         create_serializer = TaskCreateSerializer(data=request.data)
         create_serializer.is_valid(raise_exception=True)
@@ -234,35 +249,47 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
                 request=self.request
             )
 
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
+        """重写destroy方法以确保正确的响应和权限检查"""
+        instance = self.get_object()
+        
         # 检查权限：任务创建者或项目负责人可以删除任务
-        user = self.request.user
+        user = request.user
         task = instance
         
         is_creator = task.creator == user
         is_project_owner = task.project and task.project.owner == user
         
         if not (is_creator or is_project_owner):
-            raise PermissionDenied('只有任务创建者或项目负责人可以删除任务')
+            return Response(
+                {'error': '只有任务创建者或项目负责人可以删除任务'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
         
         # 记录删除日志
-        TaskLog.log_action(
-            task=task,
-            user=user,
-            action='deleted',
-            description=f'删除了任务：{task.title}',
-            old_value={
-                'task_id': task.id,
-                'title': task.title,
-                'status': task.status,
-                'creator': task.creator.username,
-                'assignee': task.assignee.username if task.assignee else None
-            },
-            request=self.request
-        )
+        try:
+            TaskLog.log_action(
+                task=task,
+                user=user,
+                action='deleted',
+                description=f'删除了任务：{task.title}',
+                old_value={
+                    'task_id': task.id,
+                    'title': task.title,
+                    'status': task.status,
+                    'creator': task.creator.username,
+                    'assignee': task.assignee.username if task.assignee else None
+                },
+                request=request
+            )
+        except Exception as e:
+            # 日志记录失败不应该影响删除操作
+            print(f"Failed to create task log: {e}")
         
         # 删除任务（这会级联删除相关的附件、评论等）
         instance.delete()
+        
+        return Response({'message': '任务删除成功'}, status=status.HTTP_200_OK)
 
 class TaskCommentListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]

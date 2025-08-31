@@ -57,14 +57,22 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsProjectMemberOrReadOnly]
 
+    def get_serializer_class(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return ProjectCreateSerializer
+        return ProjectSerializer
+
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             self.permission_classes = [permissions.IsAuthenticated]
         return super().get_permissions()
 
     def perform_update(self, serializer):
-        if self.request.user != self.get_object().owner:
-            return Response({'error': '只有项目负责人可以修改项目'}, status=status.HTTP_403_FORBIDDEN)
+        print(f"DEBUG: Updating project with data: {serializer.validated_data}")
+        project = self.get_object()
+        if self.request.user != project.owner:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('只有项目负责人可以修改项目')
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -1778,7 +1786,7 @@ def public_projects(request):
                 'status': project.status,
                 'members_count': members_count,
                 'created_at': project.created_at,
-                'tags': project.tags.split(',') if project.tags else []
+                'tags': project.tag_list
             })
         
         return Response({

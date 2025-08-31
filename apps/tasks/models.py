@@ -30,6 +30,8 @@ class Task(models.Model):
     
     # 任务大厅相关
     is_available_for_claim = models.BooleanField(default=False, verbose_name='是否可被领取')
+    allow_claim_without_login = models.BooleanField(default=False, verbose_name='允许未登录领取')
+    is_public = models.BooleanField(default=False, verbose_name='是否公开任务')
     
     # 时间相关
     start_date = models.DateField(null=True, blank=True, verbose_name='开始日期')

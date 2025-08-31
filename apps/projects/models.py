@@ -18,6 +18,7 @@ class Project(models.Model):
         ('academic', '学术项目'),
         ('design', '设计项目'),
         ('innovation', '创新实验'),
+        ('development', '开发项目'),
         ('other', '其他'),
     ]
     
@@ -29,7 +30,7 @@ class Project(models.Model):
     # 新增字段
     project_type = models.CharField(max_length=20, choices=PROJECT_TYPE_CHOICES, default='other', verbose_name='项目类型')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active', verbose_name='项目状态')
-    tags = models.TextField(blank=True, help_text='标签，用逗号分隔', verbose_name='项目标签')
+    tags = models.JSONField(default=list, blank=True, help_text='项目标签', verbose_name='项目标签')
     progress = models.IntegerField(
         default=0, 
         validators=[MinValueValidator(0), MaxValueValidator(100)],
@@ -67,7 +68,12 @@ class Project(models.Model):
     def tag_list(self):
         """返回标签列表"""
         if self.tags:
-            return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+            # 如果是列表（新格式），直接返回
+            if isinstance(self.tags, list):
+                return self.tags
+            # 如果是字符串（旧格式），按逗号分割
+            elif isinstance(self.tags, str):
+                return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
         return []
 
 class ProjectMembership(models.Model):
@@ -275,7 +281,7 @@ class Task(models.Model):
     )
     
     # 标签和分类
-    tags = models.TextField(blank=True, help_text='标签，用逗号分隔', verbose_name='任务标签')
+    tags = models.JSONField(default=list, blank=True, help_text='任务标签', verbose_name='任务标签')
     category = models.CharField(max_length=50, blank=True, verbose_name='任务分类')
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
@@ -293,7 +299,12 @@ class Task(models.Model):
     def tag_list(self):
         """返回标签列表"""
         if self.tags:
-            return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
+            # 如果是列表（新格式），直接返回
+            if isinstance(self.tags, list):
+                return self.tags
+            # 如果是字符串（旧格式），按逗号分割
+            elif isinstance(self.tags, str):
+                return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
         return []
     
     @property
