@@ -15,7 +15,7 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = ('id', 'title', 'description', 'creator', 'creator_name', 'assignee', 'assignee_name',
                  'project', 'project_name', 'status', 'priority', 'start_date', 'due_date', 'completion_date',
                  'completed_at', 'progress', 'estimated_hours', 'actual_hours', 'system_score', 
-                 'function_score', 'time_coefficient', 'tags', 'tag_list', 'category', 'is_overdue',
+                 'function_score', 'time_coefficient', 'weight_coefficient', 'tags', 'tag_list', 'category', 'is_overdue',
                  'is_available_for_claim', 'comments_count', 'attachments', 'created_at', 'updated_at')
 
     def get_comments_count(self, obj):
@@ -33,7 +33,7 @@ class TaskSerializer(serializers.ModelSerializer):
 class TaskCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = ('title', 'description', 'assignee', 'project', 'priority', 'start_date', 
+        fields = ('title', 'description', 'assignee', 'weight_coefficient', 'project', 'priority', 'start_date', 
                  'due_date', 'estimated_hours', 'progress', 'tags', 'category', 'is_available_for_claim')
 
 class TaskCommentSerializer(serializers.ModelSerializer):

@@ -408,22 +408,79 @@ class TaskAttachment(models.Model):
 
 class ProjectLog(models.Model):
     LOG_TYPE_CHOICES = [
+        # 项目相关操作
         ('project_created', '项目创建'),
         ('project_updated', '项目更新'),
+        ('project_deleted', '项目删除'),
+        ('project_archived', '项目归档'),
+        ('project_restored', '项目恢复'),
+        
+        # 成员管理操作
         ('member_joined', '成员加入'),
         ('member_left', '成员离开'),
         ('member_role_changed', '成员角色变更'),
+        ('member_invited', '邀请成员'),
+        ('member_removed', '移除成员'),
+        ('member_permission_changed', '成员权限变更'),
+        
+        # 任务相关操作
         ('task_created', '任务创建'),
         ('task_updated', '任务更新'),
         ('task_completed', '任务完成'),
         ('task_deleted', '任务删除'),
+        ('task_assigned', '任务分配'),
+        ('task_reassigned', '任务重新分配'),
+        ('task_priority_changed', '任务优先级变更'),
+        ('task_deadline_changed', '任务截止日期变更'),
+        ('task_progress_updated', '任务进度更新'),
+        ('task_status_changed', '任务状态变更'),
+        
+        # 文件操作
         ('file_uploaded', '文件上传'),
         ('file_deleted', '文件删除'),
+        ('file_downloaded', '文件下载'),
+        ('file_shared', '文件分享'),
+        
+        # 评论和沟通
+        ('comment_added', '评论添加'),
+        ('comment_updated', '评论更新'),
+        ('comment_deleted', '评论删除'),
+        ('message_sent', '发送消息'),
+        
+        # 评分和评估
         ('rating_created', '评分创建'),
         ('rating_completed', '评分完成'),
-        ('comment_added', '评论添加'),
+        ('evaluation_started', '评估开始'),
+        ('evaluation_completed', '评估完成'),
+        ('points_awarded', '积分奖励'),
+        ('points_deducted', '积分扣除'),
+        
+        # 项目状态和里程碑
         ('milestone_reached', '里程碑达成'),
+        ('milestone_created', '里程碑创建'),
+        ('milestone_updated', '里程碑更新'),
         ('status_changed', '状态变更'),
+        ('progress_updated', '进度更新'),
+        
+        # 投票和决策
+        ('vote_created', '创建投票'),
+        ('vote_participated', '参与投票'),
+        ('vote_completed', '投票完成'),
+        ('decision_made', '做出决策'),
+        
+        # 财务相关
+        ('investment_made', '投资操作'),
+        ('revenue_recorded', '收益记录'),
+        ('expense_recorded', '支出记录'),
+        ('valuation_updated', '估值更新'),
+        
+        # 系统操作
+        ('backup_created', '创建备份'),
+        ('settings_changed', '设置变更'),
+        ('permission_granted', '授予权限'),
+        ('permission_revoked', '撤销权限'),
+        
+        # 其他操作
         ('other', '其他操作'),
     ]
     
@@ -432,6 +489,12 @@ class ProjectLog(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name='操作用户')
     title = models.CharField(max_length=200, verbose_name='日志标题')
     description = models.TextField(blank=True, verbose_name='详细描述')
+    
+    # 操作详细信息
+    action_method = models.CharField(max_length=50, blank=True, verbose_name='操作方法', help_text='如：POST, PUT, DELETE, GET等')
+    action_function = models.CharField(max_length=100, blank=True, verbose_name='操作功能', help_text='如：创建任务、更新项目、分配成员等')
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP地址')
+    user_agent = models.TextField(blank=True, verbose_name='用户代理')
     
     # 相关对象信息（可选）
     related_task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='相关任务')
@@ -449,7 +512,7 @@ class ProjectLog(models.Model):
     metadata = models.JSONField(default=dict, blank=True, verbose_name='元数据')
     
     # 时间戳
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='操作时间')
     
     class Meta:
         verbose_name = '项目日志'
@@ -465,7 +528,9 @@ class ProjectLog(models.Model):
         return f"{self.project.name} - {self.title}"
     
     @classmethod
-    def create_log(cls, project, log_type, user, title, description='', **kwargs):
+    def create_log(cls, project, log_type, user, title, description='', 
+                   action_method='', action_function='', ip_address=None, 
+                   user_agent='', **kwargs):
         """便捷方法创建项目日志"""
         return cls.objects.create(
             project=project,
@@ -473,6 +538,10 @@ class ProjectLog(models.Model):
             user=user,
             title=title,
             description=description,
+            action_method=action_method,
+            action_function=action_function,
+            ip_address=ip_address,
+            user_agent=user_agent,
             **kwargs
         )
 

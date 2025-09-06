@@ -79,6 +79,13 @@ class Task(models.Model):
         default=Decimal('1.00'),
         verbose_name='时效系数'
     )
+    weight_coefficient = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal('1.00'),
+        validators=[MinValueValidator(Decimal('0.1')), MaxValueValidator(Decimal('1.0'))],
+        verbose_name='项目权重系数'
+    )
     
     # 标签和分类
     tags = models.TextField(blank=True, help_text='标签，用逗号分隔', verbose_name='任务标签')
