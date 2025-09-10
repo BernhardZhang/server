@@ -46,6 +46,11 @@ class Project(models.Model):
     is_active = models.BooleanField(default=True, verbose_name='是否活跃')
     is_public = models.BooleanField(default=False, verbose_name='是否公开展示')
     
+    # 邀请码相关字段
+    invite_code = models.CharField(max_length=20, unique=True, null=True, blank=True, verbose_name='邀请码')
+    invite_code_expires_at = models.DateTimeField(null=True, blank=True, verbose_name='邀请码过期时间')
+    invite_code_enabled = models.BooleanField(default=True, verbose_name='是否启用邀请码')
+    
     # 时间字段
     start_date = models.DateField(null=True, blank=True, verbose_name='开始时间')
     end_date = models.DateField(null=True, blank=True, verbose_name='结束时间')
@@ -75,6 +80,36 @@ class Project(models.Model):
             elif isinstance(self.tags, str):
                 return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
         return []
+    
+    def generate_invite_code(self):
+        """生成邀请码"""
+        import random
+        import string
+        from django.utils import timezone
+        
+        # 生成8位随机邀请码
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # 确保邀请码唯一
+        while Project.objects.filter(invite_code=code).exists():
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        self.invite_code = code
+        # 设置7天过期时间
+        self.invite_code_expires_at = timezone.now() + timezone.timedelta(days=7)
+        self.save(update_fields=['invite_code', 'invite_code_expires_at'])
+        
+        return code
+    
+    def is_invite_code_valid(self):
+        """检查邀请码是否有效"""
+        if not self.invite_code or not self.invite_code_enabled:
+            return False
+        
+        if self.invite_code_expires_at and timezone.now() > self.invite_code_expires_at:
+            return False
+        
+        return True
 
 class ProjectMembership(models.Model):
     ROLE_CHOICES = [
