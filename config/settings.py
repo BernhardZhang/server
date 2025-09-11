@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',  # Add this for Token authentication
     'corsheaders',
+    'cacheops',  # Django-cacheops
     # Custom apps in dependency order
     'apps.users',      # First - no dependencies
     'apps.projects',   # Second - depends on users
@@ -68,7 +69,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': config('DB_NAME', default='wislab_system'),
         'USER': config('DB_USER', default='root'),
-        'PASSWORD': config('DB_PASSWORD', default='G_pids_2017'),
+        'PASSWORD': config('DB_PASSWORD', default='123456'),
         'HOST': config('DB_HOST', default='0.0.0.0'),
         'PORT': config('DB_PORT', default='3306'),
         'OPTIONS': {
@@ -151,3 +152,36 @@ LOGGING = {
         },
     },
 }
+
+# Cacheops Configuration
+CACHEOPS_REDIS = {
+    'host': config('REDIS_HOST', default='127.0.0.1'),
+    'port': config('REDIS_PORT', default=6379, cast=int),
+    'db': config('REDIS_DB', default=1, cast=int),
+    'socket_timeout': 3,
+}
+
+# Default cache timeout (in seconds)
+CACHEOPS_DEFAULTS = {
+    'timeout': 60 * 60,  # 1 hour
+}
+
+# Model-specific caching configuration
+CACHEOPS = {
+    # Cache all model operations for 1 hour
+    'users.*': {'ops': 'all', 'timeout': 60 * 60},  # 1 hour
+    'projects.*': {'ops': 'all', 'timeout': 60 * 60},
+    'voting.*': {'ops': 'all', 'timeout': 30 * 60},  # 30 minutes for voting data
+    'finance.*': {'ops': 'all', 'timeout': 60 * 60},
+    'merit.*': {'ops': 'all', 'timeout': 60 * 60},
+    'points.*': {'ops': 'all', 'timeout': 60 * 60},
+    'tasks.*': {'ops': 'all', 'timeout': 30 * 60},   # 30 minutes for tasks
+    'analysis.*': {'ops': 'all', 'timeout': 60 * 60},
+    'dashboard.*': {'ops': 'all', 'timeout': 15 * 60}, # 15 minutes for dashboard
+    
+    # Cache auth models for longer
+    'auth.*': {'ops': 'all', 'timeout': 60 * 60 * 24},  # 24 hours
+}
+
+# Enable cache debugging in development
+CACHEOPS_DEGRADE_ON_FAILURE = True

@@ -8,3 +8,5 @@ requests
 PyJWT
 python-decouple
 mysqlclient
+django-cacheops
+redis
