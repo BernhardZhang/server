@@ -826,43 +826,6 @@ def evaluation_session_summary(request, session_id):
     except TaskEvaluationSession.DoesNotExist:
         return Response({'error': '评估会话不存在'}, status=status.HTTP_404_NOT_FOUND)
 
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def task_hall_list(request):
-    """获取任务大厅中的可领取任务列表"""
-    try:
-        # 获取所有标记为可领取且未分配的任务
-        available_tasks = Task.objects.filter(
-            is_available_for_claim=True,
-            assignee__isnull=True,
-            status='pending'
-        ).select_related('project', 'creator').order_by('-created_at')
-        
-        # 分页处理
-        page = request.GET.get('page', 1)
-        page_size = min(int(request.GET.get('page_size', 20)), 100)  # 最大100条每页
-        
-        # 手动分页
-        start_idx = (int(page) - 1) * page_size
-        end_idx = start_idx + page_size
-        tasks_page = available_tasks[start_idx:end_idx]
-        
-        serializer = TaskSerializer(tasks_page, many=True)
-        
-        return Response({
-            'tasks': serializer.data,
-            'total': available_tasks.count(),
-            'page': int(page),
-            'page_size': page_size,
-            'has_next': end_idx < available_tasks.count(),
-            'has_prev': int(page) > 1
-        })
-        
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def claim_task(request, task_id):

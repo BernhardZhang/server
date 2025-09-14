@@ -19,7 +19,6 @@ urlpatterns = [
     path('<int:task_id>/claim/', views.claim_task, name='claim-task'),
     path('summary/', views.my_task_summary, name='my-task-summary'),
     path('score-summary/', views.user_task_score_summary, name='user-task-score-summary'),
-    path('hall/', views.task_hall_list, name='task-hall-list'),
     
     # 评估会话相关
     path('evaluation-sessions/', views.TaskEvaluationSessionListCreateView.as_view(), name='evaluation-session-list-create'),

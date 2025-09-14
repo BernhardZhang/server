@@ -70,9 +70,30 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         print(f"DEBUG: Updating project with data: {serializer.validated_data}")
         project = self.get_object()
-        if self.request.user != project.owner:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('只有项目负责人可以修改项目')
+        user = self.request.user
+        
+        # 获取要更新的字段
+        update_fields = set(serializer.validated_data.keys())
+        
+        # 如果只更新 is_public 字段，放宽权限检查
+        if update_fields == {'is_public'}:
+            # 项目所有者和项目成员都可以更新公开状态
+            if user == project.owner or project.members.filter(id=user.id).exists():
+                serializer.save()
+                return
+        
+        # 对于其他字段的更新，需要更严格的权限检查
+        if user != project.owner:
+            # 检查用户是否是项目管理员
+            try:
+                membership = ProjectMembership.objects.get(user=user, project=project)
+                if membership.role not in ['owner', 'admin']:
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied('只有项目负责人或管理员可以修改项目')
+            except ProjectMembership.DoesNotExist:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('只有项目负责人或管理员可以修改项目')
+        
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
@@ -1865,28 +1886,17 @@ def public_projects(request):
     """获取公开项目列表"""
     try:
         # 只返回标记为公开的项目
-        projects = Project.objects.filter(is_public=True).select_related('owner')
+        projects = Project.objects.filter(is_public=True, is_active=True).select_related('owner')
         
-        # 简化的项目序列化数据
-        project_data = []
-        for project in projects[:10]:  # 限制返回数量
-            members_count = ProjectMembership.objects.filter(project=project).count()
-            
-            project_data.append({
-                'id': project.id,
-                'name': project.name,
-                'description': project.description[:200] if project.description else '',
-                'status': project.status,
-                'members_count': members_count,
-                'created_at': project.created_at,
-                'tags': project.tag_list
-            })
+        # 使用完整的项目序列化器
+        serializer = ProjectSerializer(projects, many=True)
         
         return Response({
-            'results': project_data,
-            'count': len(project_data)
+            'results': serializer.data,
+            'count': len(serializer.data)
         })
     except Exception as e:
+        print(f"Error in public_projects: {e}")
         # 返回模拟数据
         return Response({
             'results': [
@@ -1989,3 +1999,39 @@ def public_project_tasks(request, pk):
         return Response({'error': '项目不存在或不公开'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({'error': '获取任务信息失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def project_hall_list(request):
+    """获取任务大厅中的可领取任务列表"""
+    try:
+        # 获取所有标记为可领取且未分配的任务
+        available_tasks = Task.objects.filter(
+            is_available_for_claim=True,
+            assignee__isnull=True,
+            status='pending'
+        ).select_related('project', 'creator').order_by('-created_at')
+
+        # 分页处理
+        page = request.GET.get('page', 1)
+        page_size = min(int(request.GET.get('page_size', 20)), 100)  # 最大100条每页
+
+        # 手动分页
+        start_idx = (int(page) - 1) * page_size
+        end_idx = start_idx + page_size
+        tasks_page = available_tasks[start_idx:end_idx]
+
+        serializer = TaskSerializer(tasks_page, many=True)
+
+        return Response({
+            'tasks': serializer.data,
+            'total': available_tasks.count(),
+            'page': int(page),
+            'page_size': page_size,
+            'has_next': end_idx < available_tasks.count(),
+            'has_prev': int(page) > 1
+        })
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

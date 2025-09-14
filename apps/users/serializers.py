@@ -9,7 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ('balance', 'total_invested', 'total_received')
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=6)
     password_confirm = serializers.CharField(write_only=True)
 
     class Meta:

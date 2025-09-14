@@ -59,4 +59,5 @@ urlpatterns = [
     path('<int:pk>/tasks/public/', views.public_project_tasks, name='public-project-tasks'),
     
     path('', include(router.urls)),
+    path('hall/', views.project_hall_list, name='project-hall-list'),
 ]
