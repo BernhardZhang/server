@@ -143,6 +143,99 @@ def join_project(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
+def join_by_code(request):
+    """通过邀请码加入项目"""
+    try:
+        join_code = request.data.get('join_code')
+        if not join_code:
+            return Response({'error': '邀请码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 查找项目
+        try:
+            project = Project.objects.get(invite_code=join_code, is_active=True)
+        except Project.DoesNotExist:
+            return Response({'error': '邀请码无效或项目不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查邀请码是否有效
+        if not project.is_invite_code_valid():
+            return Response({'error': '邀请码已过期或已禁用'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 检查用户是否已经是项目成员
+        if project.members.filter(id=request.user.id).exists():
+            return Response({'error': '您已经是该项目成员'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 创建项目成员关系
+        membership, created = ProjectMembership.objects.get_or_create(
+            user=request.user,
+            project=project,
+            defaults={'contribution_percentage': 0.00}
+        )
+
+        if created:
+            # 记录项目日志
+            ProjectLog.create_log(
+                project=project,
+                log_type='member_joined',
+                user=request.user,
+                title=f'{request.user.username} 通过邀请码加入了项目',
+                description=f'用户通过邀请码 {join_code} 加入项目'
+            )
+            return Response({
+                'message': '成功加入项目',
+                'project': {
+                    'id': project.id,
+                    'name': project.name,
+                    'description': project.description
+                }
+            })
+        else:
+            return Response({'error': '加入项目失败'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except Exception as e:
+        return Response({'error': f'加入项目失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def generate_invite_code(request, project_id):
+    """生成项目邀请码"""
+    try:
+        project = Project.objects.get(id=project_id, is_active=True)
+
+        # 检查权限：只有项目负责人和管理员可以生成邀请码
+        if project.owner != request.user:
+            # 检查是否是项目管理员
+            try:
+                membership = ProjectMembership.objects.get(user=request.user, project=project)
+                if membership.role not in ['owner', 'admin']:
+                    return Response({'error': '只有项目负责人和管理员可以生成邀请码'}, status=status.HTTP_403_FORBIDDEN)
+            except ProjectMembership.DoesNotExist:
+                return Response({'error': '只有项目负责人和管理员可以生成邀请码'}, status=status.HTTP_403_FORBIDDEN)
+
+        # 生成邀请码
+        invite_code = project.generate_invite_code()
+
+        # 记录项目日志
+        ProjectLog.create_log(
+            project=project,
+            log_type='invite_code_generated',
+            user=request.user,
+            title=f'生成了新的邀请码',
+            description=f'邀请码: {invite_code}，有效期至: {project.invite_code_expires_at.strftime("%Y-%m-%d %H:%M:%S")}'
+        )
+
+        return Response({
+            'invite_code': invite_code,
+            'expires_at': project.invite_code_expires_at,
+            'message': '邀请码生成成功'
+        })
+
+    except Project.DoesNotExist:
+        return Response({'error': '项目不存在'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': f'生成邀请码失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
 def leave_project(request):
     """离开项目"""
     project_id = request.data.get('project_id')
@@ -515,3 +608,100 @@ class RevenueDistributionViewSet(ModelViewSet):
         return RevenueDistribution.objects.filter(
             Q(member=user) | Q(revenue__project__owner=user)
         ).select_related('revenue', 'member', 'membership')
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_project_logs(request, project_id):
+    """获取项目日志"""
+    try:
+        project = Project.objects.get(id=project_id)
+
+        # 检查用户是否有权限查看此项目的日志
+        if not (request.user == project.owner or
+                project.projectmembership_set.filter(user=request.user).exists()):
+            return Response(
+                {'error': '您没有权限查看此项目的日志'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 分页参数
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 20))
+
+        # 获取项目日志
+        logs = ProjectLog.objects.filter(project=project).select_related(
+            'user', 'related_user'
+        ).order_by('-created_at')
+
+        # 分页
+        from django.core.paginator import Paginator
+        paginator = Paginator(logs, page_size)
+        page_obj = paginator.get_page(page)
+
+        # 序列化数据
+        serializer = ProjectLogSerializer(page_obj.object_list, many=True)
+
+        return Response({
+            'results': serializer.data,
+            'has_more': page_obj.has_next(),
+            'total': paginator.count,
+            'page': page,
+            'page_size': page_size
+        })
+
+    except Project.DoesNotExist:
+        return Response(
+            {'error': '项目不存在'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def create_project_log(request, project_id):
+    """创建项目日志"""
+    try:
+        project = Project.objects.get(id=project_id)
+
+        # 检查用户是否有权限创建此项目的日志
+        if not (request.user == project.owner or
+                project.projectmembership_set.filter(user=request.user).exists()):
+            return Response(
+                {'error': '您没有权限创建此项目的日志'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 创建日志
+        log_data = request.data.copy()
+        log_data['project'] = project.id
+        log_data['user'] = request.user.id
+
+        serializer = ProjectLogSerializer(data=log_data)
+        if serializer.is_valid():
+            log = serializer.save()
+            return Response(
+                ProjectLogSerializer(log).data,
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    except Project.DoesNotExist:
+        return Response(
+            {'error': '项目不存在'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

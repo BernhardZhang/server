@@ -3,7 +3,6 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register(r'logs', views.ProjectLogViewSet, basename='projectlog')
 router.register(r'recruitments', views.MemberRecruitmentViewSet, basename='recruitment')
 router.register(r'applications', views.MemberApplicationViewSet, basename='application')
 router.register(r'revenues', views.ProjectRevenueViewSet, basename='revenue')
@@ -13,7 +12,11 @@ router.register(r'memberships', views.ProjectMembershipViewSet, basename='member
 urlpatterns = [
     path('', views.ProjectListCreateView.as_view(), name='project-list-create'),
     path('<int:pk>/', views.ProjectDetailView.as_view(), name='project-detail'),
+    path('<int:project_id>/logs/', views.get_project_logs, name='project-logs'),
+    path('<int:project_id>/logs/create/', views.create_project_log, name='create-project-log'),
     path('join/', views.join_project, name='join-project'),
+    path('join-by-code/', views.join_by_code, name='join-by-code'),
+    path('<int:project_id>/generate-invite-code/', views.generate_invite_code, name='generate-invite-code'),
     path('leave/', views.leave_project, name='leave-project'),
     path('update-member-role/', views.update_member_role, name='update-member-role'),
     path('remove-member/', views.remove_member, name='remove-member'),

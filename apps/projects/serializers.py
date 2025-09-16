@@ -60,13 +60,25 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 class ProjectLogSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.username', read_only=True)
     related_user_name = serializers.CharField(source='related_user.username', read_only=True)
+    log_type_display = serializers.CharField(source='get_log_type_display', read_only=True)
+
+    # 相关任务信息（从metadata中提取）
+    related_task_title = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectLog
         fields = (
-            'id', 'log_type', 'user', 'user_name', 'title', 'description',
-            'related_user', 'related_user_name', 'changes', 'metadata', 'created_at'
+            'id', 'log_type', 'log_type_display', 'user', 'user_name', 'title', 'description',
+            'related_user', 'related_user_name', 'related_task_title',
+            'action_method', 'action_function', 'ip_address',
+            'changes', 'metadata', 'created_at'
         )
+
+    def get_related_task_title(self, obj):
+        """从metadata中获取相关任务标题"""
+        if obj.metadata and 'task_title' in obj.metadata:
+            return obj.metadata['task_title']
+        return None
 
 # 招募相关序列化器
 class MemberRecruitmentSerializer(serializers.ModelSerializer):
