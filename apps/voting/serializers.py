@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import VotingRound, Vote, ContributionEvaluation, SelfEvaluation
+from .models import VotingRound, Vote, ContributionEvaluation, SelfEvaluation, RatingSession, Rating
 
 class VotingRoundSerializer(serializers.ModelSerializer):
     class Meta:
@@ -24,9 +24,10 @@ class VoteSerializer(serializers.ModelSerializer):
 class VoteCreateSerializer(serializers.ModelSerializer):
     voting_round = serializers.PrimaryKeyRelatedField(
         queryset=VotingRound.objects.all(),
-        required=False
+        required=False,
+        allow_null=True
     )
-    
+
     class Meta:
         model = Vote
         fields = ('target_user', 'target_project', 'voting_round', 'amount', 'vote_type')
@@ -34,20 +35,13 @@ class VoteCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         target_user = data.get('target_user')
         target_project = data.get('target_project')
-        
+
         # 确保只能选择一个目标
         if target_user and target_project:
             raise serializers.ValidationError("不能同时投票给用户和项目")
         if not target_user and not target_project:
             raise serializers.ValidationError("必须选择投票目标")
-            
-        # 如果没有传递voting_round，自动使用活跃轮次
-        if not data.get('voting_round'):
-            active_round = VotingRound.objects.filter(is_active=True).first()
-            if not active_round:
-                raise serializers.ValidationError("没有找到活跃的投票轮次")
-            data['voting_round'] = active_round
-            
+
         # 检查投票类型规则（只有在创建时设置默认值）
         voter = self.context['request'].user
         if target_user == voter:
@@ -59,7 +53,7 @@ class VoteCreateSerializer(serializers.ModelSerializer):
             data['vote_type'] = 'project'
         else:
             data['vote_type'] = 'individual'
-            
+
         return data
 
     def create(self, validated_data):
@@ -148,4 +142,69 @@ class SelfEvaluationCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['investor'] = self.context['request'].user
+        return super().create(validated_data)
+
+# 评分活动序列化器
+class RatingSessionSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    selected_members_detail = serializers.SerializerMethodField()
+    member_count = serializers.ReadOnlyField()
+    rating_count = serializers.ReadOnlyField()
+
+    class Meta:
+        model = RatingSession
+        fields = ('id', 'project', 'project_name', 'theme', 'description', 'created_by', 'created_by_name',
+                  'status', 'selected_members', 'selected_members_detail', 'total_points', 'member_count',
+                  'rating_count', 'created_at', 'ended_at')
+
+    def get_selected_members_detail(self, obj):
+        return [{'id': member.id, 'username': member.username} for member in obj.selected_members.all()]
+
+class RatingSessionCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RatingSession
+        fields = ('project', 'theme', 'description', 'selected_members', 'total_points')
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+# 评分记录序列化器
+class RatingSerializer(serializers.ModelSerializer):
+    session_theme = serializers.CharField(source='session.theme', read_only=True)
+    rater_name = serializers.CharField(source='rater.username', read_only=True)
+    target_name = serializers.CharField(source='target.username', read_only=True)
+
+    class Meta:
+        model = Rating
+        fields = ('id', 'session', 'session_theme', 'rater', 'rater_name', 'target', 'target_name',
+                  'score', 'remark', 'created_at', 'updated_at')
+
+class RatingCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rating
+        fields = ('session', 'target', 'score', 'remark')
+
+    def validate(self, data):
+        session = data['session']
+        target = data['target']
+        request = self.context['request']
+
+        # 检查评分活动状态
+        if session.status != 'active':
+            raise serializers.ValidationError("评分活动已结束，无法提交评分")
+
+        # 检查目标用户是否是评分活动的参与成员
+        if not session.selected_members.filter(id=target.id).exists():
+            raise serializers.ValidationError("目标用户不是该评分活动的参与成员")
+
+        # 检查评分者是否是评分活动的参与成员
+        if not session.selected_members.filter(id=request.user.id).exists():
+            raise serializers.ValidationError("您不是该评分活动的参与成员")
+
+        return data
+
+    def create(self, validated_data):
+        validated_data['rater'] = self.context['request'].user
         return super().create(validated_data)

@@ -151,9 +151,9 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             'assignee': old_task.assignee.username if old_task.assignee else None,
             'due_date': old_task.due_date.isoformat() if old_task.due_date else None
         }
-        
-        # 保存更新
-        task = serializer.save()
+
+        # 保存更新，自动保持原有的creator和project
+        task = serializer.save(creator=old_task.creator, project=old_task.project)
         
         # 处理文件上传（如果有的话）
         files = self.request.FILES.getlist('files')

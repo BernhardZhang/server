@@ -867,3 +867,38 @@ class TaskContributionRecord(models.Model):
     def weighted_score(self):
         """加权分数"""
         return self.score * self.weight
+
+
+class TaskAssignment(models.Model):
+    """任务参与成员分配表 - tasks app版本"""
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='task_assignments', verbose_name='任务')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='task_assignments', verbose_name='用户')
+    role_weight = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal('1.00'),
+        verbose_name='角色权重'
+    )
+    system_score = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='系统分'
+    )
+    function_score = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name='功分'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'tasks_taskassignment'
+        verbose_name = '任务分配'
+        verbose_name_plural = '任务分配'
+        unique_together = ['task', 'user']
+
+    def __str__(self):
+        return f"{self.task.title} - {self.user.username} ({self.role_weight})"

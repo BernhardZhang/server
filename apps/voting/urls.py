@@ -13,4 +13,14 @@ urlpatterns = [
     path('evaluations/<int:pk>/', views.ContributionEvaluationDetailView.as_view(), name='evaluation-detail'),
     path('self-evaluations/', views.SelfEvaluationListCreateView.as_view(), name='self-evaluation-list-create'),
     path('self-evaluations/<int:pk>/', views.SelfEvaluationDetailView.as_view(), name='self-evaluation-detail'),
+
+    # 评分活动相关URLs
+    path('rating-sessions/', views.RatingSessionListCreateView.as_view(), name='rating-session-list-create'),
+    path('rating-sessions/<int:pk>/', views.RatingSessionDetailView.as_view(), name='rating-session-detail'),
+    path('rating-sessions/my/', views.my_rating_sessions, name='my-rating-sessions'),
+
+    # 评分记录相关URLs
+    path('ratings/', views.RatingListCreateView.as_view(), name='rating-list-create'),
+    path('ratings/my/', views.MyRatingsView.as_view(), name='my-ratings'),
+    path('ratings/received/', views.RatingsReceivedView.as_view(), name='ratings-received'),
 ]

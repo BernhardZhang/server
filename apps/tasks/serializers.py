@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, TaskComment, TaskAttachment, TaskEvaluation, TaskEvaluationSession, TaskLog, TaskUserLog, TaskUserLogAttachment
+from .models import Task, TaskComment, TaskAttachment, TaskEvaluation, TaskEvaluationSession, TaskLog, TaskUserLog, TaskUserLogAttachment, TaskAssignment
 
 class TaskSerializer(serializers.ModelSerializer):
     creator_name = serializers.CharField(source='creator.username', read_only=True)
@@ -10,13 +10,80 @@ class TaskSerializer(serializers.ModelSerializer):
     is_overdue = serializers.SerializerMethodField()
     attachments = serializers.SerializerMethodField()
 
+    # 添加参与成员字段支持
+    participating_members = serializers.SerializerMethodField(read_only=True)
+    participating_members_input = serializers.JSONField(required=False, write_only=True)
+    task_percentage = serializers.IntegerField(required=False, write_only=True)
+
+    def get_participating_members(self, obj):
+        """获取参与成员列表"""
+        try:
+            assignments = TaskAssignment.objects.filter(task=obj)
+            return [
+                {
+                    'user': assignment.user.id,
+                    'user_name': assignment.user.username,
+                    'coefficient': float(assignment.role_weight),
+                    'role_weight': float(assignment.role_weight)
+                }
+                for assignment in assignments
+            ]
+        except Exception:
+            # 如果查询失败，返回空列表
+            return []
+
     class Meta:
         model = Task
         fields = ('id', 'title', 'description', 'creator', 'creator_name', 'assignee', 'assignee_name',
                  'project', 'project_name', 'status', 'priority', 'start_date', 'due_date', 'completion_date',
-                 'completed_at', 'progress', 'estimated_hours', 'actual_hours', 'system_score', 
+                 'completed_at', 'progress', 'estimated_hours', 'actual_hours', 'system_score',
                  'function_score', 'time_coefficient', 'weight_coefficient', 'tags', 'tag_list', 'category', 'is_overdue',
-                 'is_available_for_claim', 'comments_count', 'attachments', 'created_at', 'updated_at')
+                 'is_available_for_claim', 'comments_count', 'attachments', 'created_at', 'updated_at',
+                 'participating_members', 'participating_members_input', 'task_percentage')
+        read_only_fields = ('creator', 'project')  # 这些字段只读，不允许通过API修改
+
+    def update(self, instance, validated_data):
+        # 处理参与成员数据
+        participating_members = validated_data.pop('participating_members_input', None)
+        # 移除不在模型中的字段，避免验证错误
+        validated_data.pop('task_percentage', None)
+
+        # 添加调试日志
+        print(f"DEBUG: participating_members data: {participating_members}")
+
+        # 调用父类的update方法
+        task = super().update(instance, validated_data)
+
+        # 处理参与成员
+        if participating_members is not None:
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+
+                # 删除现有的任务分配
+                TaskAssignment.objects.filter(task=task).delete()
+
+                # 创建新的任务分配
+                for member_data in participating_members:
+                    try:
+                        user_id = member_data.get('user')
+                        coefficient = member_data.get('coefficient', 1.0)
+
+                        if user_id:
+                            user = User.objects.get(id=user_id)
+                            TaskAssignment.objects.create(
+                                task=task,
+                                user=user,
+                                role_weight=coefficient
+                            )
+                    except (User.DoesNotExist, ValueError, KeyError):
+                        # 忽略无效的用户数据
+                        continue
+            except Exception:
+                # 如果处理失败，忽略
+                pass
+
+        return task
 
     def get_comments_count(self, obj):
         return obj.comments.count()
@@ -31,10 +98,48 @@ class TaskSerializer(serializers.ModelSerializer):
         return TaskAttachmentSerializer(obj.attachments.all(), many=True).data
 
 class TaskCreateSerializer(serializers.ModelSerializer):
+    participating_members_input = serializers.JSONField(required=False, write_only=True)
+
     class Meta:
         model = Task
-        fields = ('title', 'description', 'assignee', 'weight_coefficient', 'project', 'priority', 'start_date', 
-                 'due_date', 'estimated_hours', 'progress', 'tags', 'category', 'is_available_for_claim')
+        fields = ('title', 'description', 'assignee', 'weight_coefficient', 'project', 'priority', 'start_date',
+                 'due_date', 'estimated_hours', 'progress', 'tags', 'category', 'is_available_for_claim',
+                 'participating_members_input')
+
+    def create(self, validated_data):
+        # 处理参与成员数据
+        participating_members = validated_data.pop('participating_members_input', [])
+
+        # 创建任务
+        task = super().create(validated_data)
+
+        # 处理参与成员
+        if participating_members:
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+
+                # 创建任务分配
+                for member_data in participating_members:
+                    try:
+                        user_id = member_data.get('user')
+                        coefficient = member_data.get('coefficient', 1.0)
+
+                        if user_id:
+                            user = User.objects.get(id=user_id)
+                            TaskAssignment.objects.create(
+                                task=task,
+                                user=user,
+                                role_weight=coefficient
+                            )
+                    except (User.DoesNotExist, ValueError, KeyError):
+                        # 忽略无效的用户数据
+                        continue
+            except Exception:
+                # 如果处理失败，忽略
+                pass
+
+        return task
 
 class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.username', read_only=True)
