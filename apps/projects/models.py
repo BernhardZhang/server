@@ -65,7 +65,7 @@ class Project(models.Model):
 
     @property
     def member_count(self):
-        return self.members.count()
+        return self.projectmembership_set.filter(is_active=True).count()
 
     @property
     def tag_list(self):

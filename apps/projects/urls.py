@@ -20,6 +20,10 @@ urlpatterns = [
     path('leave/', views.leave_project, name='leave-project'),
     path('update-member-role/', views.update_member_role, name='update-member-role'),
     path('remove-member/', views.remove_member, name='remove-member'),
+    # 新增REST风格的URL模式以匹配前端调用（使用user_id）
+    path('<int:project_id>/members/<int:user_id>/set-admin/', views.set_member_admin, name='set-member-admin'),
+    path('<int:project_id>/members/<int:user_id>/remove-admin/', views.remove_member_admin, name='remove-member-admin'),
+    path('<int:project_id>/members/<int:user_id>/remove/', views.remove_project_member, name='remove-project-member'),
     path('update-contribution/', views.update_contribution, name='update-contribution'),
     path('my-projects/', views.my_projects, name='my-projects'),
     path('public/', views.public_projects, name='public-projects'),

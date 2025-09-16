@@ -8,10 +8,11 @@ User = get_user_model()
 
 class ProjectMembershipSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.username', read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
 
     class Meta:
         model = ProjectMembership
-        fields = ('user', 'user_name', 'contribution_percentage', 'join_date')
+        fields = ('id', 'user', 'user_name', 'role', 'role_display', 'contribution_percentage', 'join_date', 'is_active')
 
 class ProjectSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.username', read_only=True)

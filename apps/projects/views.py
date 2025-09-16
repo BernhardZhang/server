@@ -341,7 +341,215 @@ def remove_member(request):
     removed_user = membership.user
     membership.delete()
 
+    # 记录日志
+    ProjectLog.create_log(
+        project=project,
+        log_type='member_removed',
+        user=user,
+        title=f'移除了成员 {removed_user.username}',
+        description=f'从项目中移除了成员 {removed_user.username}',
+        related_user=removed_user
+    )
+
     return Response({'message': f'成功移除成员 {removed_user.username}'})
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def set_member_admin(request, project_id, user_id):
+    """设置成员为管理员（REST风格API，使用user_id）"""
+    try:
+        project = Project.objects.get(id=project_id, is_active=True)
+    except Project.DoesNotExist:
+        return Response({'error': f'项目ID {project_id} 不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        membership = ProjectMembership.objects.get(user_id=user_id, project_id=project_id)
+    except ProjectMembership.DoesNotExist:
+        return Response({
+            'error': f'成员关系不存在',
+            'debug_info': f'项目ID: {project_id}, 用户ID: {user_id}',
+            'suggestion': '该用户不是此项目的成员'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user
+
+    # 只有项目负责人或管理员可以设置管理员
+    if user != project.owner:
+        try:
+            user_membership = ProjectMembership.objects.get(user=user, project=project)
+            if user_membership.role not in ['owner', 'admin']:
+                return Response({'error': '权限不足'}, status=status.HTTP_403_FORBIDDEN)
+        except ProjectMembership.DoesNotExist:
+            return Response({'error': '权限不足'}, status=status.HTTP_403_FORBIDDEN)
+
+    # 不能将项目负责人的角色改为其他角色（如果需要的话可以启用）
+    # if membership.user == project.owner:
+    #     return Response({'error': '不能更改项目负责人的角色'}, status=status.HTTP_400_BAD_REQUEST)
+
+    old_role = membership.role
+    new_role = 'admin'
+
+    if old_role == new_role:
+        return Response({'message': f'{membership.user.username} 已经是管理员了'})
+
+    # 检查是否已有管理员（单管理员限制）
+    existing_admin = ProjectMembership.objects.filter(
+        project=project,
+        role='admin',
+        is_active=True
+    ).exclude(id=membership.id).first()
+
+    if existing_admin:
+        return Response({
+            'error': '该项目已有管理员',
+            'current_admin': {
+                'username': existing_admin.user.username,
+                'user_id': existing_admin.user.id
+            },
+            'suggestion': '每个项目只能有一个管理员，请先移除当前管理员'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    membership.role = new_role
+    membership.save()
+
+    # 记录日志
+    ProjectLog.create_log(
+        project=project,
+        log_type='member_role_changed',
+        user=user,
+        title=f'设置 {membership.user.username} 为管理员',
+        description=f'角色从 {old_role} 改为 {new_role}',
+        related_user=membership.user
+    )
+
+    # 返回更新后的成员信息
+    from .serializers import ProjectMembershipSerializer
+    updated_membership = ProjectMembershipSerializer(membership).data
+
+    return Response({
+        'message': f'成功设置 {membership.user.username} 为管理员',
+        'updated_membership': updated_membership,
+        'project_id': project_id,
+        'member_count': project.member_count  # 添加最新成员数量
+    })
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def remove_member_admin(request, project_id, user_id):
+    """取消成员管理员角色（REST风格API，使用user_id）"""
+    try:
+        project = Project.objects.get(id=project_id, is_active=True)
+    except Project.DoesNotExist:
+        return Response({'error': f'项目ID {project_id} 不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        membership = ProjectMembership.objects.get(user_id=user_id, project_id=project_id)
+    except ProjectMembership.DoesNotExist:
+        return Response({
+            'error': f'成员关系不存在',
+            'debug_info': f'项目ID: {project_id}, 用户ID: {user_id}',
+            'suggestion': '该用户不是此项目的成员'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user
+
+    # 只有项目负责人或当前用户自己可以取消管理员
+    if user != project.owner and user != membership.user:
+        return Response({'error': '只有项目负责人或管理员自己可以取消管理员角色'}, status=status.HTTP_403_FORBIDDEN)
+
+    old_role = membership.role
+    new_role = 'member'
+
+    if old_role == new_role:
+        return Response({'message': f'{membership.user.username} 已经是普通成员了'})
+
+    if old_role != 'admin':
+        return Response({'error': f'{membership.user.username} 不是管理员'}, status=status.HTTP_400_BAD_REQUEST)
+
+    membership.role = new_role
+    membership.save()
+
+    # 记录日志
+    ProjectLog.create_log(
+        project=project,
+        log_type='member_role_changed',
+        user=user,
+        title=f'取消了 {membership.user.username} 的管理员角色',
+        description=f'角色从 {old_role} 改为 {new_role}',
+        related_user=membership.user
+    )
+
+    # 返回更新后的成员信息
+    from .serializers import ProjectMembershipSerializer
+    updated_membership = ProjectMembershipSerializer(membership).data
+
+    return Response({
+        'message': f'成功取消 {membership.user.username} 的管理员角色',
+        'updated_membership': updated_membership,
+        'project_id': project_id,
+        'member_count': project.member_count
+    })
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def remove_project_member(request, project_id, user_id):
+    """移除项目成员（REST风格API，使用user_id）"""
+    try:
+        project = Project.objects.get(id=project_id, is_active=True)
+    except Project.DoesNotExist:
+        return Response({'error': f'项目ID {project_id} 不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        membership = ProjectMembership.objects.get(user_id=user_id, project_id=project_id)
+    except ProjectMembership.DoesNotExist:
+        return Response({
+            'error': f'成员关系不存在',
+            'debug_info': f'项目ID: {project_id}, 用户ID: {user_id}',
+            'suggestion': '该用户不是此项目的成员'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    user = request.user
+
+    # 只有项目负责人或管理员可以移除成员
+    if user != project.owner:
+        try:
+            user_membership = ProjectMembership.objects.get(user=user, project=project)
+            if user_membership.role not in ['owner', 'admin']:
+                return Response({'error': '权限不足'}, status=status.HTTP_403_FORBIDDEN)
+        except ProjectMembership.DoesNotExist:
+            return Response({'error': '权限不足'}, status=status.HTTP_403_FORBIDDEN)
+
+    # 不能移除项目负责人
+    if membership.user == project.owner:
+        return Response({'error': '不能移除项目负责人'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 不能移除自己
+    if membership.user == user:
+        return Response({'error': '不能移除自己，请使用离开项目功能'}, status=status.HTTP_400_BAD_REQUEST)
+
+    removed_user = membership.user
+    removed_user_info = {
+        'user_id': removed_user.id,
+        'username': removed_user.username
+    }
+    membership.delete()
+
+    # 记录日志
+    ProjectLog.create_log(
+        project=project,
+        log_type='member_removed',
+        user=user,
+        title=f'移除了成员 {removed_user.username}',
+        description=f'从项目中移除了成员 {removed_user.username}',
+        related_user=removed_user
+    )
+
+    return Response({
+        'message': f'成功移除成员 {removed_user.username}',
+        'removed_member': removed_user_info,
+        'project_id': project_id,
+        'member_count': project.member_count  # 添加最新成员数量
+    })
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
