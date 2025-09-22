@@ -28,6 +28,7 @@ urlpatterns = [
     path('my-projects/', views.my_projects, name='my-projects'),
     path('public/', views.public_projects, name='public-projects'),
     path('distribute-revenue/', views.distribute_revenue, name='distribute-revenue'),
+    path('project-points/', views.project_points, name='project-points'),
 
     path('', include(router.urls)),
 ]

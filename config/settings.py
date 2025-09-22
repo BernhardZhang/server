@@ -24,7 +24,7 @@ INSTALLED_APPS = [
     # Custom apps in dependency order
     'apps.users',      # First - no dependencies
     'apps.projects',   # Second - depends on users
-    'apps.voting',     # Third - depends on users and projects  
+    'apps.voting',     # Third - depends on users and projects
     'apps.finance',    # Fourth - depends on users, projects, voting
     'apps.merit',      # Fifth - depends on users, projects, voting
     'apps.points',     # Sixth - depends on users, projects, voting
@@ -67,7 +67,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': config('DB_NAME', default='wislab_system'),
+        'NAME': config('DB_NAME', default='crewcut'),
         'USER': config('DB_USER', default='root'),
         'PASSWORD': config('DB_PASSWORD', default='123456'),
         'HOST': config('DB_HOST', default='0.0.0.0'),

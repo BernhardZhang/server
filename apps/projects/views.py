@@ -23,6 +23,7 @@ from .serializers import (
     RevenueDistributionSerializer
 )
 from .permissions import IsAuthenticatedOrReadOnly, IsProjectMemberOrReadOnly
+from .project_points_view import project_points
 
 User = get_user_model()
 

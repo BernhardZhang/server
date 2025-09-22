@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import MeritRound, ContributionEvaluation, MeritCriteria, DetailedEvaluation
+from .models import (
+    MeritRound, ContributionEvaluation, MeritCriteria, DetailedEvaluation,
+    ProjectMeritCalculation, TaskMeritAssignment, PeerReview, MeritCalculationResult
+)
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -144,3 +147,106 @@ class ProjectMeritSummarySerializer(serializers.Serializer):
     participant_count = serializers.IntegerField()
     top_performer = serializers.DictField()
     evaluation_completion_rate = serializers.FloatField()
+
+
+class ProjectMeritCalculationSerializer(serializers.ModelSerializer):
+    """项目功分计算序列化器"""
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    task_assignments_count = serializers.SerializerMethodField()
+    peer_reviews_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectMeritCalculation
+        fields = (
+            'id', 'project', 'project_name', 'name', 'description', 'status',
+            'total_project_value', 'calculation_start_date', 'calculation_end_date',
+            'peer_review_deadline', 'created_by', 'created_by_name', 'created_at',
+            'updated_at', 'task_assignments_count', 'peer_reviews_count'
+        )
+        read_only_fields = ('created_by', 'created_at', 'updated_at')
+
+    def get_task_assignments_count(self, obj):
+        return obj.task_assignments.count()
+
+    def get_peer_reviews_count(self, obj):
+        return obj.peer_reviews.count()
+
+
+class TaskMeritAssignmentSerializer(serializers.ModelSerializer):
+    """任务功分分配序列化器"""
+    task_title = serializers.CharField(source='task.title', read_only=True)
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    calculation_name = serializers.CharField(source='calculation.name', read_only=True)
+
+    class Meta:
+        model = TaskMeritAssignment
+        fields = (
+            'id', 'calculation', 'calculation_name', 'task', 'task_title',
+            'user', 'user_name', 'task_percentage', 'role_weight',
+            'planned_start_date', 'planned_end_date', 'actual_end_date',
+            'time_coefficient', 'system_score', 'function_score', 'total_score',
+            'created_at', 'updated_at'
+        )
+        read_only_fields = ('time_coefficient', 'system_score', 'total_score', 'created_at', 'updated_at')
+
+
+class PeerReviewSerializer(serializers.ModelSerializer):
+    """同行互评序列化器"""
+    reviewer_name = serializers.CharField(source='reviewer.username', read_only=True)
+    reviewed_user_name = serializers.CharField(source='reviewed_user.username', read_only=True)
+    calculation_name = serializers.CharField(source='calculation.name', read_only=True)
+
+    class Meta:
+        model = PeerReview
+        fields = (
+            'id', 'calculation', 'calculation_name', 'reviewer', 'reviewer_name',
+            'reviewed_user', 'reviewed_user_name', 'score', 'work_quality_score',
+            'collaboration_score', 'efficiency_score', 'innovation_score',
+            'comment', 'is_anonymous', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('reviewer', 'created_at', 'updated_at')
+
+    def validate(self, attrs):
+        reviewer = self.context['request'].user
+        reviewed_user = attrs['reviewed_user']
+        calculation = attrs['calculation']
+
+        # 不能评价自己
+        if reviewer == reviewed_user:
+            raise serializers.ValidationError("不能评价自己")
+
+        # 检查是否已经评价过
+        if PeerReview.objects.filter(
+            calculation=calculation,
+            reviewer=reviewer,
+            reviewed_user=reviewed_user
+        ).exists():
+            raise serializers.ValidationError("您已经评价过该用户")
+
+        # 检查评价人是否是项目成员
+        if not calculation.project.members.filter(id=reviewer.id).exists():
+            raise serializers.ValidationError("您不是该项目的成员，无法进行评价")
+
+        # 检查被评价用户是否是项目成员
+        if not calculation.project.members.filter(id=reviewed_user.id).exists():
+            raise serializers.ValidationError("被评价用户不是该项目的成员")
+
+        return attrs
+
+
+class MeritCalculationResultSerializer(serializers.ModelSerializer):
+    """功分计算结果序列化器"""
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    calculation_name = serializers.CharField(source='calculation.name', read_only=True)
+    project_name = serializers.CharField(source='calculation.project.name', read_only=True)
+
+    class Meta:
+        model = MeritCalculationResult
+        fields = (
+            'id', 'calculation', 'calculation_name', 'project_name', 'user', 'user_name',
+            'total_system_score', 'total_peer_reviews_received', 'average_peer_review_score',
+            'individual_points', 'total_team_points', 'function_score', 'final_score',
+            'rank', 'created_at', 'updated_at'
+        )
+        read_only_fields = ('created_at', 'updated_at')
