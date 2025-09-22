@@ -150,33 +150,76 @@ class Task(models.Model):
         """计算时效系数"""
         if not self.due_date or not self.completed_at:
             return Decimal('1.00')
-        
+
         # 计算完成时间与截止时间的差值（天数）
         completed_date = self.completed_at.date()
         due_date = self.due_date.date()
         days_diff = (completed_date - due_date).days
-        
-        if days_diff < -6:  # 提前7天以上
-            return Decimal('1.30')
-        elif days_diff < -3:  # 提前4-6天
-            return Decimal('1.25')
-        elif days_diff < 0:   # 提前1-3天
-            return Decimal('1.20')
+
+        # 提前完成奖励
+        if days_diff < 0:  # 提前完成
+            early_days = abs(days_diff)
+            if early_days >= 4 and early_days <= 7:  # 提前4-7天
+                return Decimal('1.30')
+            elif early_days >= 1 and early_days <= 3:  # 提前1-3天
+                return Decimal('1.20')
+            elif early_days > 7:  # 提前7天以上，按最高奖励
+                return Decimal('1.30')
+            return Decimal('1.00')
         elif days_diff == 0:  # 按时完成
             return Decimal('1.00')
-        elif days_diff <= 1:  # 超时1天
-            return Decimal('0.90')
-        elif days_diff <= 3:  # 超时2-3天
-            return Decimal('0.70')
-        elif days_diff <= 7:  # 超时4-7天
-            return Decimal('0.50')
-        else:  # 超时7天以上
-            return Decimal('0.30')
+        else:  # 超时惩罚
+            # 计算计划工期（从开始日期到截止日期的天数）
+            if self.start_date:
+                planned_days = (due_date - self.start_date).days
+            else:
+                # 如果没有开始日期，估算为预估工时的天数（假设每天8小时）
+                if self.estimated_hours:
+                    planned_days = max(1, int(float(self.estimated_hours) / 8))
+                else:
+                    planned_days = 7  # 默认一周
+
+            if planned_days > 0:
+                # 计算超时百分比
+                overtime_percentage = (days_diff / planned_days) * 100
+
+                if overtime_percentage <= 10:  # 超时≤10%
+                    return Decimal('0.90')
+                elif overtime_percentage <= 30:  # 10% < 超时≤30%
+                    return Decimal('0.70')
+                else:  # 超时 > 30%
+                    return Decimal('0.50')
+            else:
+                # 退化到天数分档
+                if days_diff <= 1:
+                    return Decimal('0.90')
+                elif days_diff <= 3:
+                    return Decimal('0.70')
+                else:
+                    return Decimal('0.50')
     
     def calculate_system_score(self):
-        """计算系统分：基础分数 × 时效系数"""
-        base_score = Decimal('100.00')  # 基础100分
-        return base_score * self.time_coefficient
+        """计算系统分：任务占比 × 角色权重 × 时效系数"""
+        # 获取项目中所有任务的总工时
+        project_tasks = Task.objects.filter(project=self.project)
+        total_hours = sum(float(task.estimated_hours or 0) for task in project_tasks)
+
+        if total_hours == 0:
+            return Decimal('0.00')
+
+        # 计算任务占比（0-1）
+        task_ratio = float(self.estimated_hours or 0) / total_hours
+
+        # 角色权重系数
+        role_weight = float(self.weight_coefficient)
+
+        # 时效系数
+        time_coefficient = float(self.calculate_time_coefficient())
+
+        # 系统分 = 任务占比 × 角色权重 × 时效系数 × 100分
+        system_score = task_ratio * role_weight * time_coefficient * 100
+
+        return Decimal(str(round(system_score, 2)))
 
 class TaskComment(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='comments', verbose_name='任务')

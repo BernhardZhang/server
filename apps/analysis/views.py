@@ -128,7 +128,7 @@ def project_progress_analysis(request):
                 'member_count': project.member_count,
                 'vote_count': project.vote_count,
                 'created_at': project.created_at,
-                'progress_percentage': project.progress_percentage if hasattr(project, 'progress_percentage') else 0
+                'progress_percentage': project.calculated_progress
             } for project in projects
         ]
     })

@@ -79,6 +79,45 @@ class Project(models.Model):
                 return [tag.strip() for tag in self.tags.split(',') if tag.strip()]
         return []
 
+    @property
+    def calculated_progress(self):
+        """基于任务计算的项目进度"""
+        from apps.tasks.models import Task
+        from decimal import Decimal
+
+        # 获取项目的所有任务
+        tasks = Task.objects.filter(project=self)
+
+        if not tasks.exists():
+            return 0
+
+        # 方法1: 使用预估工时作为权重计算加权平均进度
+        tasks_with_hours = tasks.filter(estimated_hours__gt=0)
+
+        if tasks_with_hours.exists():
+            # 使用工时加权计算
+            weighted_progress = Decimal('0')
+            total_weight = Decimal('0')
+
+            for task in tasks_with_hours:
+                hours = task.estimated_hours or Decimal('0')
+                progress = Decimal(str(task.progress or 0))
+                weighted_progress += (progress * hours)
+                total_weight += hours
+
+            if total_weight > 0:
+                result = int(weighted_progress / total_weight)
+                return min(max(result, 0), 100)
+
+        # 方法2: 基于任务完成状态计算（如果没有工时信息）
+        completed_tasks = tasks.filter(status='completed').count()
+        in_progress_tasks = tasks.filter(status='in_progress').count()
+        total_tasks = tasks.count()
+
+        # 已完成任务算100%，进行中任务算50%，其他算0%
+        progress_value = int(((completed_tasks * 100) + (in_progress_tasks * 50)) / total_tasks)
+        return min(max(progress_value, 0), 100)
+
     def generate_invite_code(self):
         """生成邀请码"""
         import random

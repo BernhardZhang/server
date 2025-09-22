@@ -30,7 +30,8 @@ INSTALLED_APPS = [
     'apps.points',     # Sixth - depends on users, projects, voting
     'apps.tasks',      # Seventh - depends on users, projects
     'apps.analysis',   # Eighth - depends on users, projects, voting
-    'apps.dashboard',  # Ninth - depends on users, projects, tasks
+    'apps.logs',       # Ninth - depends on users, projects, tasks
+    'apps.dashboard',  # Tenth - depends on users, projects, tasks
 ]
 
 MIDDLEWARE = [

@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/points/', include('apps.points.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/analysis/', include('apps.analysis.urls')),
+    path('api/logs/', include('apps.logs.urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
 ]
 
