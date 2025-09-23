@@ -4,7 +4,6 @@ from decimal import Decimal
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
-    student_id = models.CharField(max_length=20, unique=True, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -17,8 +16,6 @@ class User(AbstractUser):
     REQUIRED_FIELDS = ['username']
 
     def __str__(self):
-        if self.student_id:
-            return f"{self.username} ({self.student_id})"
         return self.username
 
     @property
