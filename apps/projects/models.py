@@ -174,23 +174,6 @@ class ProjectMembership(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.project.name} ({self.get_role_display()})"
 
-class ProjectFile(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='files', verbose_name='项目')
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name='上传者')
-    file = models.FileField(upload_to='project_files/%Y/%m/', verbose_name='文件')
-    name = models.CharField(max_length=255, verbose_name='文件名')
-    description = models.TextField(blank=True, verbose_name='文件描述')
-    file_size = models.PositiveIntegerField(verbose_name='文件大小(字节)')
-    file_type = models.CharField(max_length=50, verbose_name='文件类型')
-    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='上传时间')
-
-    class Meta:
-        verbose_name = '项目文件'
-        verbose_name_plural = '项目文件'
-        ordering = ['-uploaded_at']
-
-    def __str__(self):
-        return f"{self.project.name} - {self.name}"
 
 class ProjectLog(models.Model):
     LOG_TYPE_CHOICES = [
@@ -209,11 +192,6 @@ class ProjectLog(models.Model):
         ('member_removed', '移除成员'),
         ('member_permission_changed', '成员权限变更'),
 
-        # 文件操作
-        ('file_uploaded', '文件上传'),
-        ('file_deleted', '文件删除'),
-        ('file_downloaded', '文件下载'),
-        ('file_shared', '文件分享'),
 
         # 评论和沟通
         ('comment_added', '评论添加'),

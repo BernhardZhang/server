@@ -132,25 +132,6 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='ProjectFile',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('file', models.FileField(upload_to='project_files/%Y/%m/', verbose_name='文件')),
-                ('name', models.CharField(max_length=255, verbose_name='文件名')),
-                ('description', models.TextField(blank=True, verbose_name='文件描述')),
-                ('file_size', models.PositiveIntegerField(verbose_name='文件大小(字节)')),
-                ('file_type', models.CharField(max_length=50, verbose_name='文件类型')),
-                ('uploaded_at', models.DateTimeField(auto_now_add=True, verbose_name='上传时间')),
-                ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='files', to='projects.project', verbose_name='项目')),
-                ('uploaded_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL, verbose_name='上传者')),
-            ],
-            options={
-                'verbose_name': '项目文件',
-                'verbose_name_plural': '项目文件',
-                'ordering': ['-uploaded_at'],
-            },
-        ),
-        migrations.CreateModel(
             name='RatingSession',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -342,7 +323,7 @@ class Migration(migrations.Migration):
             name='ProjectLog',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('log_type', models.CharField(choices=[('project_created', '项目创建'), ('project_updated', '项目更新'), ('member_joined', '成员加入'), ('member_left', '成员离开'), ('member_role_changed', '成员角色变更'), ('task_created', '任务创建'), ('task_updated', '任务更新'), ('task_completed', '任务完成'), ('task_deleted', '任务删除'), ('file_uploaded', '文件上传'), ('file_deleted', '文件删除'), ('rating_created', '评分创建'), ('rating_completed', '评分完成'), ('comment_added', '评论添加'), ('milestone_reached', '里程碑达成'), ('status_changed', '状态变更'), ('other', '其他操作')], max_length=50, verbose_name='日志类型')),
+                ('log_type', models.CharField(choices=[('project_created', '项目创建'), ('project_updated', '项目更新'), ('member_joined', '成员加入'), ('member_left', '成员离开'), ('member_role_changed', '成员角色变更'), ('task_created', '任务创建'), ('task_updated', '任务更新'), ('task_completed', '任务完成'), ('task_deleted', '任务删除'), ('rating_created', '评分创建'), ('rating_completed', '评分完成'), ('comment_added', '评论添加'), ('milestone_reached', '里程碑达成'), ('status_changed', '状态变更'), ('other', '其他操作')], max_length=50, verbose_name='日志类型')),
                 ('title', models.CharField(max_length=200, verbose_name='日志标题')),
                 ('description', models.TextField(blank=True, verbose_name='详细描述')),
                 ('changes', models.JSONField(blank=True, default=dict, verbose_name='变更内容')),
