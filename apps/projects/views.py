@@ -612,7 +612,7 @@ def update_contribution(request):
     return Response({'message': '贡献度更新成功'})
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def public_projects(request):
     """获取公开项目列表"""
     projects = Project.objects.filter(

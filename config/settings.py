@@ -110,7 +110,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+#        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -124,9 +124,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF trusted origins from environment variable
-# Format: "http://host1:port1,https://host2:port2"
-CSRF_TRUSTED_ORIGINS_STR = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:5173,http://127.0.0.1:5173')
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STR.split(',') if origin.strip()]
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in config('CSRF_TRUSTED_ORIGINS', default='').split(',') if origin.strip()]
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -152,6 +150,11 @@ LOGGING = {
     },
     'loggers': {
         'config.middleware': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'apps': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
@@ -191,3 +194,6 @@ CACHEOPS = {
 
 # Enable cache debugging in development
 CACHEOPS_DEGRADE_ON_FAILURE = True
+
+# SSO Configuration
+REDIRECT_URL = config('REDIRECT_URL', default='https://gfy.denglu1.cn/')

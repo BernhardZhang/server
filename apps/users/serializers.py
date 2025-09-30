@@ -49,5 +49,21 @@ class LoginSerializer(serializers.Serializer):
             data['user'] = user
         else:
             raise serializers.ValidationError("必须提供邮箱和密码")
-        
+
         return data
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField()
+    new_password = serializers.CharField(min_length=6)
+    new_password_confirm = serializers.CharField()
+
+    def validate(self, data):
+        if data['new_password'] != data['new_password_confirm']:
+            raise serializers.ValidationError("新密码不匹配")
+        return data
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("原密码错误")
+        return value
